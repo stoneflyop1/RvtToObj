@@ -83,10 +83,6 @@ namespace RvtToObj
         #endregion // VertexLookupXyz
 
         #region VertexLookupInt
-        /// <summary>
-        /// An integer-based 3D point class.
-        /// </summary>
-
         class PointDouble : IComparable<PointDouble>
         {
             public double X { get; set; }
@@ -139,29 +135,10 @@ namespace RvtToObj
             public double Y { get; set; }
             public double Z { get; set; }
 
-
-            //public PointInt( int x, int y, int z )
-            //{
-            //  X = x;
-            //  Y = y;
-            //  Z = z;
-            //}
-
-            /// <summary>
-            /// Consider a Revit length zero 
-            /// if is smaller than this.
-            /// </summary>
             const double _eps = 1.0e-9;
 
-            /// <summary>
-            /// Conversion factor from feet to millimetres.
-            /// </summary>
             const double _feet_to_mm = 25.4 * 12;
 
-            /// <summary>
-            /// Conversion a given length value 
-            /// from feet to millimetre.
-            /// </summary>
             static double ConvertFeetToMillimetres(double d)
             {
                 return _feet_to_mm * d;
@@ -181,8 +158,6 @@ namespace RvtToObj
                     Z = -tmp;
                 }
             }
-
-
 
             private static int CompareDouble(double a, double b)
             {
@@ -221,9 +196,7 @@ namespace RvtToObj
         class VertexLookupDouble : Dictionary<PointDouble, int>
         {
             #region PointIntEqualityComparer
-            /// <summary>
-            /// Define equality for integer-based PointInt.
-            /// </summary>
+
             class PointDoubleEqualityComparer : IEqualityComparer<PointDouble>
             {
                 public bool Equals(PointDouble p, PointDouble q)
@@ -233,9 +206,14 @@ namespace RvtToObj
 
                 public int GetHashCode(PointDouble p)
                 {
-                    return (p.X.ToString()
-                      + "," + p.Y.ToString()
-                      + "," + p.Z.ToString())
+                    //return (p.X.ToString()
+                    //  + "," + p.Y.ToString()
+                    //  + "," + p.Z.ToString())
+                    //  .GetHashCode();
+                    var format = "{0.#########}";
+                    return (p.X.ToString(format)
+                      + "," + p.Y.ToString(format)
+                      + "," + p.Z.ToString(format))
                       .GetHashCode();
                 }
             }
@@ -246,10 +224,6 @@ namespace RvtToObj
             {
             }
 
-            /// <summary>
-            /// Return the index of the given vertex,
-            /// adding a new entry if required.
-            /// </summary>
             public int AddVertex(PointDouble p)
             {
                 return ContainsKey(p)
@@ -258,17 +232,10 @@ namespace RvtToObj
             }
         }
 
-
-        /// <summary>
-        /// A vertex lookup class to eliminate 
-        /// duplicate vertex definitions.
-        /// </summary>
         class VertexLookupInt : Dictionary<PointInt, int>
         {
             #region PointIntEqualityComparer
-            /// <summary>
-            /// Define equality for integer-based PointInt.
-            /// </summary>
+
             class PointIntEqualityComparer : IEqualityComparer<PointInt>
             {
                 public bool Equals(PointInt p, PointInt q)
@@ -277,11 +244,10 @@ namespace RvtToObj
                 }
 
                 public int GetHashCode(PointInt p)
-                {
-                    var format = "{0.#########}";
-                    return (p.X.ToString(format)
-                      + "," + p.Y.ToString(format)
-                      + "," + p.Z.ToString(format))
+                {  
+                    return (p.X.ToString()
+                      + "," + p.Y.ToString()
+                      + "," + p.Z.ToString())
                       .GetHashCode();
                 }
             }
@@ -305,16 +271,10 @@ namespace RvtToObj
         }
         #endregion // VertexLookupInt
 
-        int i = 0;
-        int j = 0;
-        int k = 0;
-        List<XYZ> pp = new List<XYZ>();
-        List<XYZ> nn = new List<XYZ>();
-        List<UV> uu = new List<UV>();
         List<int> face = new List<int>();
-        VertexLookupInt vpts = new VertexLookupInt();
-        VertexLookupDouble vuvs = new VertexLookupDouble();
-        VertexLookupDouble vnormals = new VertexLookupDouble();
+        VertexLookupInt _vertices = new VertexLookupInt();
+        VertexLookupDouble _uvs = new VertexLookupDouble();
+        VertexLookupDouble _normals = new VertexLookupDouble();
 
         bool _switch_coordinates =true;
         Document _doc;
@@ -393,83 +353,59 @@ namespace RvtToObj
         
         public void OnPolymesh(PolymeshTopology polymesh)
         {
-            i += polymesh.NumberOfPoints;
-            j += polymesh.NumberOfNormals;
-            k += polymesh.NumberOfUVs;
 
             IList<XYZ> pts = polymesh.GetPoints();
             Transform t = CurrentTransform;
             pts = pts.Select(p => t.OfPoint(p)).ToList();
-           
-            for (int i=0; i < polymesh.NumberOfPoints; i++)
-            {
-               
-                pp.Add(pts[i]);
-            }
 
             var normals = polymesh.GetNormals();
-            for (int j=0; j<polymesh.NumberOfNormals; j++)
-            {
-                nn.Add(normals[j]);
-            }
-
-
             var uvs = polymesh.GetUVs();
-            for (int k = 0; k < polymesh.NumberOfUVs; k++)
-            {
-                uu.Add(uvs[k]);
-            }
 
             int v1, v2, v3;
             int v4, v5, v6;
             int v7, v8, v9;
             int faceindex=0;
+
             foreach (PolymeshFacet facet in polymesh.GetFacets())
-            {
-        
-                v1 = vpts.AddVertex(new PointInt(pts[facet.V1], _switch_coordinates));
-                v2 = vpts.AddVertex(new PointInt(pts[facet.V2], _switch_coordinates));
-                v3 = vpts.AddVertex(new PointInt(pts[facet.V3], _switch_coordinates));
+            {               
+                v1 = _vertices.AddVertex(new PointInt(pts[facet.V1], _switch_coordinates));
+                v2 = _vertices.AddVertex(new PointInt(pts[facet.V2], _switch_coordinates));
+                v3 = _vertices.AddVertex(new PointInt(pts[facet.V3], _switch_coordinates));
 
                 face.Add(v1);
                 face.Add(v2);
                 face.Add(v3);
 
-                v4 = vuvs.AddVertex(new PointDouble(uvs[facet.V1]));
-                v5 = vuvs.AddVertex(new PointDouble(uvs[facet.V2]));
-                v6 = vuvs.AddVertex(new PointDouble(uvs[facet.V3]));
-
+                v4 = _uvs.AddVertex(new PointDouble(uvs[facet.V1]));
+                v5 = _uvs.AddVertex(new PointDouble(uvs[facet.V2]));
+                v6 = _uvs.AddVertex(new PointDouble(uvs[facet.V3]));
                 face.Add(v4);
                 face.Add(v5);
                 face.Add(v6);
 
                 if (polymesh.DistributionOfNormals == DistributionOfNormals.AtEachPoint)
                 {
-                    v7 = vnormals.AddVertex(new PointDouble(normals[facet.V1], _switch_coordinates));
-                    v8 = vnormals.AddVertex(new PointDouble(normals[facet.V2], _switch_coordinates));
-                    v9 = vnormals.AddVertex(new PointDouble(normals[facet.V3], _switch_coordinates));
-
-                    
+                    v7 = _normals.AddVertex(new PointDouble(normals[facet.V1], _switch_coordinates));
+                    v8 = _normals.AddVertex(new PointDouble(normals[facet.V2], _switch_coordinates));
+                    v9 = _normals.AddVertex(new PointDouble(normals[facet.V3], _switch_coordinates));
                 }
                 else if (polymesh.DistributionOfNormals == DistributionOfNormals.OnEachFacet)
                 {
-                    v7 = vnormals.AddVertex(new PointDouble(normals[faceindex], _switch_coordinates));
+                    v7 = _normals.AddVertex(new PointDouble(normals[faceindex], _switch_coordinates));
                     v8 = v7;
                     v9 = v7;
                 }
                 else
                 {
-                    v7 = vnormals.AddVertex(new PointDouble(normals[0],_switch_coordinates));
+                    v7 = _normals.AddVertex(new PointDouble(normals[0],_switch_coordinates));
                     v8 = v7;
                     v9 = v7;
-                }
+                }          
                 face.Add(v7);
                 face.Add(v8);
                 face.Add(v9);
 
                 faceindex++;
-                //TaskDialog.Show("r", "aaaa");
-                //TaskDialog.Show("RVT",face.Count.ToString());
             }
         }
 
@@ -502,43 +438,47 @@ namespace RvtToObj
         public void Finish()
         {
             //TaskDialog.Show("revit", "Finish");
-            
-
             string material_library_path = null;
             material_library_path = Path.ChangeExtension(_filename, "mtl");
             using (StreamWriter s = new StreamWriter(_filename))
             {
-                s.WriteLine(_mtl_mtllib, Path.GetFileName(material_library_path).ToString());
+                s.WriteLine(_mtl_mtllib, "model.mtl");
 
-
-                foreach (var p in pp)
+                foreach (PointInt key in _vertices.Keys)
                 {
-                    PointInt pt = new PointInt(p, _switch_coordinates);
-                    s.WriteLine(_mtl_vertex, pt.X/1000, pt.Y/1000, pt.Z/1000);
+                    s.WriteLine(_mtl_vertex, key.X / 1000, key.Y / 1000, key.Z / 1000);
                 }
 
-                foreach (var n in nn)
+                foreach (PointDouble key in _normals.Keys)
                 {
-                    var ptt = new PointDouble(n, _switch_coordinates);
-                    s.WriteLine(_mtl_normal, ptt.X, ptt.Y, ptt.Z);
+                    s.WriteLine(_mtl_normal, key.X, key.Y, key.Z);
                 }
 
-                foreach (var u in uu)
+                foreach (PointDouble key in _uvs.Keys)
                 {
-                    var uv = new PointDouble(u);
-                    s.WriteLine(_mtl_uv, uv.X,uv.Y);
+                    s.WriteLine(_mtl_uv, key.X, key.Y);
                 }
-                TaskDialog.Show("rvt", face.Count.ToString());
-                for (int i=0; i<face.Count; i+=9)
+                
+                int i = 0;
+                int n = face.Count;
+                while (i < n)
                 {
-                    s.WriteLine($"f {face[i]} {face[i + 1]} {face[i + 2]}");
-                    //s.WriteLine(_mtl_face, face[i], face[i+1], face[i+2],
-                    //                       face[i+3], face[i+4], face[i+5],
-                    //                       face[i+6], face[i+7], face[i+8]
-                    //            );
+                    int i1 = face[i++];
+                    int i2 = face[i++];
+                    int i3 = face[i++];
+
+                    int i4 = face[i++];
+                    int i5 = face[i++];
+                    int i6 = face[i++];
+
+                    int i7 = face[i++];
+                    int i8 = face[i++];
+                    int i9 = face[i++];
+
+                    s.WriteLine($"f {i1+1}/{i4+1}/{i7+1} {i2+1}/{i5+1}/{i8+1} {i3+1}/{i6+1}/{i9+1}");
                 }
             }
-            TaskDialog.Show("to_obj","vertices:" + i.ToString()+ "  normals:" + j.ToString() + "  uvs:"+ k.ToString());
+            TaskDialog.Show("RvtToObj","导出成功！");
         }
 
         public void OnDaylightPortal(DaylightPortalNode node)
