@@ -17,5 +17,14 @@ namespace RvtToObj
             public List<int> faces { get; set; }
         }
         //public RvtObj Rvt;
+        public class Material
+        {
+            public string uuid { get; set; }
+            public string name { get; set; }
+            public Color color { get; set; }
+            public double transparency { get; set; }
+            public double shiniess { get; set; }
+        }
     }
+
 }

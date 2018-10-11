@@ -10,6 +10,8 @@ namespace RvtToObj
     [Transaction(TransactionMode.Manual)]
     public class Command : IExternalCommand
     {
+        public static Color DefaultColor = new Color(127, 127, 127);    //默认灰色
+
         /// <summary>
         /// 导出三维视图，调用CustomExporter.Export
         /// </summary>

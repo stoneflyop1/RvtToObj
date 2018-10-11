@@ -13,17 +13,10 @@ namespace RvtToObj
     {
 
         #region mtl statement format strings
-        const string _mtl_newmtl
-            = "newmtl {0}\r\n"
-            + "ka {1} {2} {3}\r\n"
-            + "Kd {1} {2} {3}\r\n"
-            + "Ks {1} {2} {3}\r\n"
-            + "Ns {4}";
         const string _mtl_newmtl_d
             = "newmtl {0}\r\n"
             + "ka {1} {2} {3}\r\n"
             + "Kd {1} {2} {3}\r\n"
-            + "Ks {1} {2} {3}\r\n"
             + "d {4}";
 
         const string _mtl_mtllib = "mtllib {0}";
@@ -271,16 +264,28 @@ namespace RvtToObj
         }
         #endregion // VertexLookupInt
 
+        //材质信息
+        Color currentColor;
+        int currentTransparencyint;
+        double currentTransparencyDouble;
+        int currentShiniess;
+        ElementId currentMterialId = ElementId.InvalidElementId;
+        int materialIndex = 0;
+        Dictionary<string, Color> colors = new Dictionary<string, Color>();
+        Dictionary<string, double> transparencys = new Dictionary<string, double>();
+        Asset currentAppearance = null;
+
+        //几何信息
         List<int> face = new List<int>();
         VertexLookupInt _vertices = new VertexLookupInt();
         VertexLookupDouble _uvs = new VertexLookupDouble();
         VertexLookupDouble _normals = new VertexLookupDouble();
+        Dictionary<string, Class1.Material> _materials = new Dictionary<string, Class1.Material>();
 
         bool _switch_coordinates =true;
         Document _doc;
         string _filename;
         Stack<Transform> _transformationStack = new Stack<Transform>();
-
 
         Transform CurrentTransform
         {
@@ -333,15 +338,107 @@ namespace RvtToObj
 
         public void OnMaterial(MaterialNode node)
         {
-            //TaskDialog.Show("revit", "OnMaterial");
+            currentTransparencyDouble = node.Transparency;
+            currentColor = node.Color;
+            currentShiniess = node.Glossiness;
+            currentTransparencyint = Convert.ToInt32(node.Transparency);
+            
 
-            ElementId id = node.MaterialId;
-
-            if (ElementId.InvalidElementId != id)
+            if (node.MaterialId != ElementId.InvalidElementId)
             {
                 Element m = _doc.GetElement(node.MaterialId);
+                Material material = _doc.GetElement(m.UniqueId) as Material;
+                ElementId appearanceId = material.AppearanceAssetId;
+                AppearanceAssetElement appearanceElem = _doc.GetElement(appearanceId) as AppearanceAssetElement;
+                Asset theAsset = appearanceElem.GetRenderingAsset();
 
+                int size = theAsset.Size;              
+                for (int assetIdx = 0; assetIdx < size; assetIdx++)
+                {
+                    AssetProperty aProperty = theAsset[assetIdx];
+                    if (aProperty.NumberOfConnectedProperties < 1)
+                        continue;
+                    // Find first connected property.
+                    // Should work for all current (2018) schemas.
+                    // Safer code would loop through all connected
+                    // properties based on the number provided.
+                    Asset connectedAsset = aProperty.GetConnectedProperty(0) as Asset;
+                    // We are only checking for bitmap connected assets.
+                    if (connectedAsset.Name == "UnifiedBitmapSchema")
+                    {
+                        // This line is 2018.1 & up because of the
+                        // property reference to UnifiedBitmap
+                        // .UnifiedbitmapBitmap. In earlier versions,
+                        // you can still reference the string name
+                        // instead: "unifiedbitmap_Bitmap"
+                        AssetPropertyString path = connectedAsset["unifiedbitmap_Bitmap"] as AssetPropertyString;
+                        // This will be a relative path to the
+                        // built -in materials folder, addiitonal
+                        // render appearance folder, or an
+                        // absolute path.
+                        TaskDialog.Show("Connected bitmap", String.Format("{0} from {2}: {1}", aProperty.Name, path.Value, connectedAsset.LibraryName));
+                    }
+                }
             }
+
+            if (currentMterialId != node.MaterialId)
+            {
+                var trgb = Util.ColorTransparencyToInt(currentColor, currentTransparencyint);
+                face.Add(-1);
+                face.Add(trgb);
+                face.Add(currentTransparencyint);
+                face.Add(-2);
+                face.Add(-2);
+                face.Add(-2);
+                face.Add(-2);
+                face.Add(-2);
+                face.Add(-2);
+                currentMterialId = node.MaterialId;
+
+
+                var ttrgb = Util.ColorTransparencyString(currentColor, currentTransparencyint);
+
+                if (!transparencys.ContainsKey(ttrgb))
+                {
+                    transparencys.Add(ttrgb, 1.0 - currentTransparencyDouble);
+                }
+
+                if (!colors.ContainsKey(ttrgb))
+                {
+                    colors.Add(ttrgb, currentColor);
+                }              
+            }
+            else
+            {
+                if (materialIndex == 0)
+                {
+                    var trgb = Util.ColorTransparencyToInt(currentColor, currentTransparencyint);
+                    face.Add(-1);
+                    face.Add(trgb);
+                    face.Add(currentTransparencyint);
+                    face.Add(-2);
+                    face.Add(-2);
+                    face.Add(-2);
+                    face.Add(-2);
+                    face.Add(-2);
+                    face.Add(-2);
+                    currentMterialId = node.MaterialId;
+                    var ttrgb = Util.ColorTransparencyString(currentColor, currentTransparencyint);
+                    colors.Add(ttrgb, currentColor);
+                    transparencys.Add(ttrgb, currentTransparencyint);
+                }
+            }
+            materialIndex++;
+
+            if (node.HasOverriddenAppearance)
+            {
+                currentAppearance = node.GetAppearanceOverride();
+            }
+            else
+            {
+                currentAppearance = node.GetAppearance();
+            }
+
         }
 
         public RenderNodeAction OnFaceBegin(FaceNode node)
@@ -353,7 +450,6 @@ namespace RvtToObj
         
         public void OnPolymesh(PolymeshTopology polymesh)
         {
-
             IList<XYZ> pts = polymesh.GetPoints();
             Transform t = CurrentTransform;
             pts = pts.Select(p => t.OfPoint(p)).ToList();
@@ -367,7 +463,8 @@ namespace RvtToObj
             int faceindex=0;
 
             foreach (PolymeshFacet facet in polymesh.GetFacets())
-            {               
+            {
+
                 v1 = _vertices.AddVertex(new PointInt(pts[facet.V1], _switch_coordinates));
                 v2 = _vertices.AddVertex(new PointInt(pts[facet.V2], _switch_coordinates));
                 v3 = _vertices.AddVertex(new PointInt(pts[facet.V3], _switch_coordinates));
@@ -407,6 +504,7 @@ namespace RvtToObj
 
                 faceindex++;
             }
+            
         }
 
         public void OnFaceEnd(FaceNode node)
@@ -474,11 +572,30 @@ namespace RvtToObj
                     int i7 = face[i++];
                     int i8 = face[i++];
                     int i9 = face[i++];
-
-                    s.WriteLine($"f {i1+1}/{i4+1}/{i7+1} {i2+1}/{i5+1}/{i8+1} {i3+1}/{i6+1}/{i9+1}");
+                    if (-1==i1)
+                    {
+                        s.WriteLine($"usemtl {Util.ColorTransparencyString(Util.IntToColorTransparency(i2,out i3),i3)}");
+                    }
+                    else
+                    {
+                        s.WriteLine($"f {i1 + 1}/{i4 + 1}/{i7 + 1} {i2 + 1}/{i5 + 1}/{i8 + 1} {i3 + 1}/{i6 + 1}/{i9 + 1}");
+                    }
+                    
                 }
             }
-            TaskDialog.Show("RvtToObj","导出成功！");
+            using (StreamWriter s = new StreamWriter(Path.GetDirectoryName(_filename) + "\\model.mtl"))
+            {
+                foreach (KeyValuePair<string, Color> color in colors)
+                {
+                    s.WriteLine(_mtl_newmtl_d, 
+                                color.Key,
+                                color.Value.Red/256.0,
+                                color.Value.Green/256.0,
+                                color.Value.Blue/256.0, 
+                                transparencys[color.Key]);
+                }
+            }
+            TaskDialog.Show("RvtToObj", "导出成功！");
         }
 
         public void OnDaylightPortal(DaylightPortalNode node)
