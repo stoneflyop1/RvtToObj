@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+
+  <AddIn Type="Command">
+    <Assembly>D:\Services\BIM\Code\RvtToObj\RvtToObj\bin\Debug\RvtToObj2018.dll</Assembly>
+    <AddInId>7ecc566f-fc18-4473-bbbf-ac0e0684324f</AddInId>
+    <FullClassName>RvtToObj.Command</FullClassName>
+    <Text>导出Obj</Text>
+    <VendorId>ADSK</VendorId>
+    <VendorDescription>Autodesk, www.autodesk.com</VendorDescription>
+  </AddIn>
+</RevitAddIns>

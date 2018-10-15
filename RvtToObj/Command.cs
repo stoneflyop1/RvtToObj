@@ -2,7 +2,11 @@
 using Autodesk.Revit.UI;
 using Autodesk.Revit.DB;
 using System.IO;
+#if R2016
 using Autodesk.Revit.Utility;
+#elif R2018
+using Autodesk.Revit.DB.Visual;
+#endif
 using System.Collections.Generic;
 using System.Text;
 using System;

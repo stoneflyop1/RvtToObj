@@ -3,7 +3,11 @@ using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using System.Diagnostics;
 using System.IO;
+#if R2016
 using Autodesk.Revit.Utility;
+#elif R2018
+using Autodesk.Revit.DB.Visual;
+#endif
 using System.Linq;
 using System.Collections.Generic;
 
@@ -12,7 +16,7 @@ namespace RvtToObj
     internal class RvtExportContext : IExportContext
     {
 
-        #region mtl statement format strings
+#region mtl statement format strings
         const string _mtl_newmtl_d
             = "newmtl {0}\r\n"
             + "ka {1} {2} {3}\r\n"
@@ -22,16 +26,16 @@ namespace RvtToObj
         const string _mtl_vertex = "v {0} {1} {2}";
         const string _mtl_normal = "vn {0} {1} {2}";
         const string _mtl_uv = "vt {0} {1}";
-        #endregion
+#endregion
 
-        #region VertexLookupXyz
+#region VertexLookupXyz
         /// <summary>
         /// A vertex lookup class to eliminate 
         /// duplicate vertex definitions.
         /// </summary>
         class VertexLookupXyz : Dictionary<XYZ, int>
         {
-            #region XyzEqualityComparer
+#region XyzEqualityComparer
             /// <summary>
             /// Define equality for Revit XYZ points.
             /// Very rough tolerance, as used by Revit itself.
@@ -52,7 +56,7 @@ namespace RvtToObj
                     return Util.PointString(p).GetHashCode();
                 }
             }
-            #endregion // XyzEqualityComparer
+#endregion // XyzEqualityComparer
 
             public VertexLookupXyz()
               : base(new XyzEqualityComparer())
@@ -70,9 +74,9 @@ namespace RvtToObj
                   : this[p] = Count;
             }
         }
-        #endregion // VertexLookupXyz
+#endregion // VertexLookupXyz
 
-        #region VertexLookupInt
+#region VertexLookupInt
         class PointDouble : IComparable<PointDouble>
         {
             public double X { get; set; }
@@ -185,7 +189,7 @@ namespace RvtToObj
 
         class VertexLookupDouble : Dictionary<PointDouble, int>
         {
-            #region PointIntEqualityComparer
+#region PointIntEqualityComparer
 
             class PointDoubleEqualityComparer : IEqualityComparer<PointDouble>
             {
@@ -207,7 +211,7 @@ namespace RvtToObj
                       .GetHashCode();
                 }
             }
-            #endregion // PointIntEqualityComparer
+#endregion // PointIntEqualityComparer
 
             public VertexLookupDouble()
               : base(new PointDoubleEqualityComparer())
@@ -224,7 +228,7 @@ namespace RvtToObj
 
         class VertexLookupInt : Dictionary<PointInt, int>
         {
-            #region PointIntEqualityComparer
+#region PointIntEqualityComparer
 
             class PointIntEqualityComparer : IEqualityComparer<PointInt>
             {
@@ -241,7 +245,7 @@ namespace RvtToObj
                       .GetHashCode();
                 }
             }
-            #endregion // PointIntEqualityComparer
+#endregion // PointIntEqualityComparer
 
             public VertexLookupInt()
               : base(new PointIntEqualityComparer())
@@ -259,7 +263,7 @@ namespace RvtToObj
                   : this[p] = Count;
             }
         }
-        #endregion // VertexLookupInt
+#endregion // VertexLookupInt
 
         
         //材质信息
@@ -305,7 +309,8 @@ namespace RvtToObj
             //AssetType type = asset.AssetType;
             //string name = asset.Name;
             //string libraryName = asset.LibraryName;
-            FileStream fs = new FileStream(@"E:\c.txt", FileMode.OpenOrCreate);
+            var tempPath = Path.Combine(Path.GetTempPath(), "c.txt");
+            FileStream fs = new FileStream(tempPath, FileMode.OpenOrCreate);
             StreamWriter sw = new StreamWriter(fs);
             // travel the asset properties in the asset.
             for (int idx = 0; idx < asset.Size; idx++)
@@ -321,54 +326,93 @@ namespace RvtToObj
         {
             switch (prop.Type)
             {
-                // Retrieve the value from simple type property is easy.  
-                // for example, retrieve bool property value.  
-                case AssetPropertyType.APT_Integer:
+                // Retrieve the value from simple type property is easy.  
+                // for example, retrieve bool property value.  
+#if R2016
+                case AssetPropertyType.APT_Integer:
+#elif R2018
+                case AssetPropertyType.Integer:
+#endif
                     var AssetPropertyInt = prop as AssetPropertyInteger;
                     objWriter.WriteLine(AssetPropertyInt.Name + "= " + AssetPropertyInt.Value.ToString() + ";" + AssetPropertyInt.IsReadOnly.ToString());
                     break;
+#if R2016
                 case AssetPropertyType.APT_Distance:
+#elif R2018
+                case AssetPropertyType.Distance:
+#endif
                     var AssetPropertyDistance = prop as AssetPropertyDistance;
                     objWriter.WriteLine(AssetPropertyDistance.Name + "= " + AssetPropertyDistance.Value + ";" + AssetPropertyDistance.IsReadOnly.ToString());
                     break;
+#if R2016
                 case AssetPropertyType.APT_Double:
+#elif R2018
+                case AssetPropertyType.Double1:
+#endif
                     var AssetPropertyDouble = prop as AssetPropertyDouble;
                     objWriter.WriteLine(AssetPropertyDouble.Name + "= " + AssetPropertyDouble.Value.ToString() + ";" + AssetPropertyDouble.IsReadOnly.ToString());
                     break;
+#if R2016
                 case AssetPropertyType.APT_DoubleArray2d:
+#elif R2018
+                case AssetPropertyType.Double2:
+#endif
                     var AssetPropertyDoubleArray2d = prop as AssetPropertyDoubleArray2d;
                     objWriter.WriteLine(AssetPropertyDoubleArray2d.Name + "= " + AssetPropertyDoubleArray2d.Value.ToString() + ";" + AssetPropertyDoubleArray2d.IsReadOnly.ToString());
                     break;
+#if R2016
                 case AssetPropertyType.APT_DoubleArray4d:
+#elif R2018
+                case AssetPropertyType.Double4:
+#endif
                     var AssetPropertyDoubleArray4d = prop as AssetPropertyDoubleArray4d;
                     objWriter.WriteLine(AssetPropertyDoubleArray4d.Name + "= " + AssetPropertyDoubleArray4d.Value.ToString() + ";" + AssetPropertyDoubleArray4d.IsReadOnly.ToString());
                     break;
-      
+#if R2016
                 case AssetPropertyType.APT_String:
+#elif R2018
+                case AssetPropertyType.String:
+#endif
                     AssetPropertyString val = prop as AssetPropertyString;
                     objWriter.WriteLine(val.Name + "= " + val.Value + ";" + val.IsReadOnly.ToString());
                     break;
+#if R2016
                 case AssetPropertyType.APT_Boolean:
+#elif R2018
+                case AssetPropertyType.Boolean:
+#endif
                     AssetPropertyBoolean boolProp = prop as AssetPropertyBoolean;
                     objWriter.WriteLine(boolProp.Name + "= " + boolProp.Value.ToString() + ";" + boolProp.IsReadOnly.ToString());
                     break;
-                // When you retrieve the value from the data array property,  
-                // you may need to get which value the property stands for.  
-                // for example, the APT_Double44 may be a transform data.  
-                case AssetPropertyType.APT_Double44:
+                // When you retrieve the value from the data array property,  
+                // you may need to get which value the property stands for.  
+                // for example, the APT_Double44 may be a transform data. 
+#if R2016
+                case AssetPropertyType.APT_Double44:
+#elif R2018
+                case AssetPropertyType.Double44:
+#endif
                     AssetPropertyDoubleArray4d transformProp = prop as AssetPropertyDoubleArray4d;
                     DoubleArray tranformValue = transformProp.Value;
                     objWriter.WriteLine(transformProp.Name + "= " + transformProp.Value.ToString() + ";" + tranformValue.IsReadOnly.ToString());
                     break;
-                // The APT_List contains a list of sub asset properties with same type.  
-                case AssetPropertyType.APT_List:
+                // The APT_List contains a list of sub asset properties with same type. 
+#if R2016
+                case AssetPropertyType.APT_List:
+#elif R2018
+                case AssetPropertyType.List:
+#endif
                     AssetPropertyList propList = prop as AssetPropertyList;
                     IList<AssetProperty> subProps = propList.GetValue();
                     if (subProps.Count == 0)
                         break;
                     switch (subProps[0].Type)
                     {
+#if R2016
                         case AssetPropertyType.APT_Integer:
+#elif R2018
+                        case AssetPropertyType.Integer:
+#endif
                             foreach (AssetProperty subProp in subProps)
                             {
                                 AssetPropertyInteger intProp = subProp as AssetPropertyInteger;
@@ -376,7 +420,11 @@ namespace RvtToObj
                                 objWriter.WriteLine(intProp.Name + "= " + intProp.Value.ToString() + ";" + intProp.IsReadOnly.ToString());
                             }
                             break;
+#if R2016
                         case AssetPropertyType.APT_String:
+#elif R2018
+                        case AssetPropertyType.String:
+#endif
                             foreach (AssetProperty subProp in subProps)
                             {
                                 AssetPropertyString intProp = subProp as AssetPropertyString;
@@ -386,14 +434,22 @@ namespace RvtToObj
                             break;
                     }
                     break;
+#if R2016
                 case AssetPropertyType.APT_Asset:
+#elif R2018
+                case AssetPropertyType.Asset:
+#endif
                     Asset propAsset = prop as Asset;
                     for (int i = 0; i < propAsset.Size; i++)
                     {
                         ReadAssetProperty(propAsset[i], objWriter);
                     }
                     break;
+#if R2016
                 case AssetPropertyType.APT_Reference:
+#elif R2018
+                case AssetPropertyType.Reference:
+#endif
                     break;
                 default:
                     objWriter.WriteLine("居然有啥都不是类型的" + prop.Type.ToString());
@@ -709,6 +765,8 @@ namespace RvtToObj
             //TaskDialog.Show("RvtToObj", "导出成功！");
         }
 
+#if R2016
+
         public void OnDaylightPortal(DaylightPortalNode node)
         {
             {
@@ -718,6 +776,8 @@ namespace RvtToObj
                 + ((asset != null) ? asset.Name : "Null"));
             }
         }
+
+#endif
 
         public void OnLight(LightNode node)
         {
