@@ -1,15 +1,19 @@
 ﻿using Autodesk.Revit.Attributes;
 using Autodesk.Revit.UI;
 using Autodesk.Revit.DB;
-using SaveFileDialog = System.Windows.Forms.SaveFileDialog;
-using DialogResult = System.Windows.Forms.DialogResult;
 using System.IO;
+using Autodesk.Revit.Utility;
+using System.Collections.Generic;
+using System.Text;
+using System;
+using System.Windows.Forms;
 
 namespace RvtToObj
 {
     [Transaction(TransactionMode.Manual)]
-    public class Command : IExternalCommand
+    public class Command : IExternalCommand, IExternalCommandAvailability
     {
+        string foldPath = string.Empty;
         public static Color DefaultColor = new Color(127, 127, 127);    //默认灰色
 
         /// <summary>
@@ -17,92 +21,63 @@ namespace RvtToObj
         /// </summary>
         /// <param name="view3d"></param>
         /// <param name="filename"></param>
-        public void ExportView3D(View3D view3d,string filename)
+        public void ExportView3D(View3D view3d, string filename, AssetSet objlibraryAsset)
         {
             Document doc = view3d.Document;
-
-            RvtExportContext context = new RvtExportContext(doc, filename);
-
+            RvtExportContext context = new RvtExportContext(doc, filename, objlibraryAsset);
             CustomExporter exporter = new CustomExporter(doc, context);
-
             exporter.ShouldStopOnError = false;
-
             exporter.Export(view3d);
         }
-
-        #region SelectFile
-        static string _output_folder_path = null;
-
-        static bool SelectFile(ref string folder_path,ref string filename)
-        {
-            SaveFileDialog dlg = new SaveFileDialog();
-
-            dlg.Title = "Select OBJ Output File";
-            dlg.Filter = "OBJ files|*.obj";
-
-            if (null != folder_path && 0 < folder_path.Length)
-            {
-                dlg.InitialDirectory = folder_path;
-            }
-
-            dlg.FileName = filename;
-
-            bool rc = DialogResult.OK == dlg.ShowDialog();
-            if (rc)
-            {
-                filename = Path.Combine(dlg.InitialDirectory,dlg.FileName);
-                folder_path = Path.GetDirectoryName(filename);
-            }
-            return rc;
-        }
-        #endregion // SelectFile
 
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
             UIApplication uiapp = commandData.Application;
-            UIDocument uidoc = uiapp.ActiveUIDocument;
-            Autodesk.Revit.ApplicationServices.Application app= uiapp.Application;
+            UIDocument uidoc = commandData.Application.ActiveUIDocument;
+            Autodesk.Revit.ApplicationServices.Application app = uiapp.Application;
             Document doc = uidoc.Document;
 
+            AssetSet objlibraryAsset = app.get_Assets(AssetType.Appearance);
+
+            ///判断是否为空视图
             View3D view = doc.ActiveView as View3D;
             if (null == view)
             {
                 Util.ErrorMsg("You must be in a 3D view to export.");
-                return Result.Failed;
             }
-
-            string filename = doc.PathName;
-
-            if (0 == filename.Length)
+            try
             {
-                filename = doc.Title;
-            }
-
-            if (null == _output_folder_path)
-            {
-                try
+                FolderBrowserDialog dialog = new FolderBrowserDialog();
+                dialog.Description = "请选择文件保存路径";
+                if (dialog.ShowDialog() == DialogResult.OK)
                 {
-                    _output_folder_path = Path.GetDirectoryName(filename);
+                    foldPath = dialog.SelectedPath;
                 }
-                catch
+                string filename = doc.PathName;
+                if (0 == filename.Length)
                 {
-                    TaskDialog.Show("Folder not found","Please save the file and run the command again.");
-                    return Result.Failed;
+                    filename = doc.Title;
                 }
+                filename = Path.GetFileNameWithoutExtension(filename) + ".obj";
+                string subPath = foldPath + "\\" + Path.GetFileNameWithoutExtension(filename);
+                if (!Directory.Exists(subPath))
+                {
+                    Directory.CreateDirectory(subPath);
+                }
+                filename = Path.Combine(subPath + "\\" + filename);
+
+                ExportView3D(doc.ActiveView as View3D, filename, objlibraryAsset);
             }
-
-            filename = Path.GetFileNameWithoutExtension(filename)+".obj";
-
-            if (!SelectFile(ref _output_folder_path,ref filename))
+            catch (Exception e)
             {
-                return Result.Cancelled;
+                Console.WriteLine(e.Message);
             }
-
-            filename = Path.Combine(_output_folder_path,filename);
-
-            ExportView3D(doc.ActiveView as View3D,filename);
-
             return Result.Succeeded;
+        }
+
+        public bool IsCommandAvailable(UIApplication applicationData, CategorySet selectedCategories)
+        {
+            return true;
         }
     }
 }

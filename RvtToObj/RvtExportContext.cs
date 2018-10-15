@@ -18,11 +18,8 @@ namespace RvtToObj
             + "ka {1} {2} {3}\r\n"
             + "Kd {1} {2} {3}\r\n"
             + "d {4}";
-
         const string _mtl_mtllib = "mtllib {0}";
-        const string _mtl_usemtl = "usemtl {0}";
         const string _mtl_vertex = "v {0} {1} {2}";
-        const string _mtl_face = "f {0}/{3}/{6} {1}/{4}/{7} {2}/{5}/{8}";
         const string _mtl_normal = "vn {0} {1} {2}";
         const string _mtl_uv = "vt {0} {1}";
         #endregion
@@ -264,6 +261,7 @@ namespace RvtToObj
         }
         #endregion // VertexLookupInt
 
+        
         //材质信息
         Color currentColor;
         int currentTransparencyint;
@@ -273,18 +271,17 @@ namespace RvtToObj
         int materialIndex = 0;
         Dictionary<string, Color> colors = new Dictionary<string, Color>();
         Dictionary<string, double> transparencys = new Dictionary<string, double>();
-        Asset currentAppearance = null;
 
         //几何信息
         List<int> face = new List<int>();
         VertexLookupInt _vertices = new VertexLookupInt();
         VertexLookupDouble _uvs = new VertexLookupDouble();
         VertexLookupDouble _normals = new VertexLookupDouble();
-        Dictionary<string, Class1.Material> _materials = new Dictionary<string, Class1.Material>();
 
         bool _switch_coordinates =true;
         Document _doc;
         string _filename;
+        AssetSet _objlibraryAsset;
         Stack<Transform> _transformationStack = new Stack<Transform>();
 
         Transform CurrentTransform
@@ -295,35 +292,141 @@ namespace RvtToObj
             }
         }
 
-        public RvtExportContext(Document doc, string filename)
+        public RvtExportContext(Document doc, string filename,AssetSet objlibraryAsset)
         {
             this._doc = doc;
             this._filename = filename;
+            this._objlibraryAsset = objlibraryAsset;
+        }
+
+        public void ReadAsset(Asset asset)
+        {
+            // Get the asset name, type and library name.
+            //AssetType type = asset.AssetType;
+            //string name = asset.Name;
+            //string libraryName = asset.LibraryName;
+            FileStream fs = new FileStream(@"E:\c.txt", FileMode.OpenOrCreate);
+            StreamWriter sw = new StreamWriter(fs);
+            // travel the asset properties in the asset.
+            for (int idx = 0; idx < asset.Size; idx++)
+            {
+                AssetProperty prop = asset[idx];
+                ReadAssetProperty(prop, sw);
+            }           
+            sw.Flush();
+            fs.Close();
+        }
+
+        public void ReadAssetProperty(AssetProperty prop, StreamWriter objWriter)
+        {
+            switch (prop.Type)
+            {
+                // Retrieve the value from simple type property is easy.  
+                // for example, retrieve bool property value.  
+                case AssetPropertyType.APT_Integer:
+                    var AssetPropertyInt = prop as AssetPropertyInteger;
+                    objWriter.WriteLine(AssetPropertyInt.Name + "= " + AssetPropertyInt.Value.ToString() + ";" + AssetPropertyInt.IsReadOnly.ToString());
+                    break;
+                case AssetPropertyType.APT_Distance:
+                    var AssetPropertyDistance = prop as AssetPropertyDistance;
+                    objWriter.WriteLine(AssetPropertyDistance.Name + "= " + AssetPropertyDistance.Value + ";" + AssetPropertyDistance.IsReadOnly.ToString());
+                    break;
+                case AssetPropertyType.APT_Double:
+                    var AssetPropertyDouble = prop as AssetPropertyDouble;
+                    objWriter.WriteLine(AssetPropertyDouble.Name + "= " + AssetPropertyDouble.Value.ToString() + ";" + AssetPropertyDouble.IsReadOnly.ToString());
+                    break;
+                case AssetPropertyType.APT_DoubleArray2d:
+                    var AssetPropertyDoubleArray2d = prop as AssetPropertyDoubleArray2d;
+                    objWriter.WriteLine(AssetPropertyDoubleArray2d.Name + "= " + AssetPropertyDoubleArray2d.Value.ToString() + ";" + AssetPropertyDoubleArray2d.IsReadOnly.ToString());
+                    break;
+                case AssetPropertyType.APT_DoubleArray4d:
+                    var AssetPropertyDoubleArray4d = prop as AssetPropertyDoubleArray4d;
+                    objWriter.WriteLine(AssetPropertyDoubleArray4d.Name + "= " + AssetPropertyDoubleArray4d.Value.ToString() + ";" + AssetPropertyDoubleArray4d.IsReadOnly.ToString());
+                    break;
+      
+                case AssetPropertyType.APT_String:
+                    AssetPropertyString val = prop as AssetPropertyString;
+                    objWriter.WriteLine(val.Name + "= " + val.Value + ";" + val.IsReadOnly.ToString());
+                    break;
+                case AssetPropertyType.APT_Boolean:
+                    AssetPropertyBoolean boolProp = prop as AssetPropertyBoolean;
+                    objWriter.WriteLine(boolProp.Name + "= " + boolProp.Value.ToString() + ";" + boolProp.IsReadOnly.ToString());
+                    break;
+                // When you retrieve the value from the data array property,  
+                // you may need to get which value the property stands for.  
+                // for example, the APT_Double44 may be a transform data.  
+                case AssetPropertyType.APT_Double44:
+                    AssetPropertyDoubleArray4d transformProp = prop as AssetPropertyDoubleArray4d;
+                    DoubleArray tranformValue = transformProp.Value;
+                    objWriter.WriteLine(transformProp.Name + "= " + transformProp.Value.ToString() + ";" + tranformValue.IsReadOnly.ToString());
+                    break;
+                // The APT_List contains a list of sub asset properties with same type.  
+                case AssetPropertyType.APT_List:
+                    AssetPropertyList propList = prop as AssetPropertyList;
+                    IList<AssetProperty> subProps = propList.GetValue();
+                    if (subProps.Count == 0)
+                        break;
+                    switch (subProps[0].Type)
+                    {
+                        case AssetPropertyType.APT_Integer:
+                            foreach (AssetProperty subProp in subProps)
+                            {
+                                AssetPropertyInteger intProp = subProp as AssetPropertyInteger;
+                                int intValue = intProp.Value;
+                                objWriter.WriteLine(intProp.Name + "= " + intProp.Value.ToString() + ";" + intProp.IsReadOnly.ToString());
+                            }
+                            break;
+                        case AssetPropertyType.APT_String:
+                            foreach (AssetProperty subProp in subProps)
+                            {
+                                AssetPropertyString intProp = subProp as AssetPropertyString;
+                                string intValue = intProp.Value;
+                                objWriter.WriteLine(intProp.Name + "= " + intProp.Value.ToString() + ";" + intProp.IsReadOnly.ToString());
+                            }
+                            break;
+                    }
+                    break;
+                case AssetPropertyType.APT_Asset:
+                    Asset propAsset = prop as Asset;
+                    for (int i = 0; i < propAsset.Size; i++)
+                    {
+                        ReadAssetProperty(propAsset[i], objWriter);
+                    }
+                    break;
+                case AssetPropertyType.APT_Reference:
+                    break;
+                default:
+                    objWriter.WriteLine("居然有啥都不是类型的" + prop.Type.ToString());
+                    break;
+            }
+            // Get the connected properties.  
+            // please notice that the information of many texture stores here.  
+            if (prop.NumberOfConnectedProperties == 0)
+                return;
+            foreach (AssetProperty connectedProp in prop.GetAllConnectedProperties())
+            {
+                ReadAssetProperty(connectedProp, objWriter);
+            }
         }
 
         public bool IsCanceled()
         {
-            //TaskDialog.Show("revit", "IsCanceled");
             return false;
         }
 
         public bool Start()
         {
             _transformationStack.Push(Transform.Identity);
-            //TaskDialog.Show("revit", "Start");
             return true;
         }
 
         public RenderNodeAction OnViewBegin(ViewNode node)
         {
-            //TaskDialog.Show("revit", "OnViewBegin");
             return RenderNodeAction.Proceed;
         }
 
         public RenderNodeAction OnElementBegin(ElementId elementId)
         {
-            //TaskDialog.Show("revit", "OnElementBegin");
-
             Element e = _doc.GetElement(elementId);
             string uid = e.UniqueId;
             return RenderNodeAction.Proceed;
@@ -331,7 +434,6 @@ namespace RvtToObj
 
         public RenderNodeAction OnInstanceBegin(InstanceNode node)
         {
-            //TaskDialog.Show("revit", "OnInstanceBegin");
             _transformationStack.Push(CurrentTransform.Multiply(node.GetTransform()));
             return RenderNodeAction.Proceed;
         }
@@ -342,43 +444,67 @@ namespace RvtToObj
             currentColor = node.Color;
             currentShiniess = node.Glossiness;
             currentTransparencyint = Convert.ToInt32(node.Transparency);
-            
+
 
             if (node.MaterialId != ElementId.InvalidElementId)
             {
-                Element m = _doc.GetElement(node.MaterialId);
-                Material material = _doc.GetElement(m.UniqueId) as Material;
-                ElementId appearanceId = material.AppearanceAssetId;
-                AppearanceAssetElement appearanceElem = _doc.GetElement(appearanceId) as AppearanceAssetElement;
-                Asset theAsset = appearanceElem.GetRenderingAsset();
-
-                int size = theAsset.Size;              
-                for (int assetIdx = 0; assetIdx < size; assetIdx++)
+                Asset theAsset = node.GetAppearance();
+                if (node.HasOverriddenAppearance)
                 {
-                    AssetProperty aProperty = theAsset[assetIdx];
-                    if (aProperty.NumberOfConnectedProperties < 1)
-                        continue;
-                    // Find first connected property.
-                    // Should work for all current (2018) schemas.
-                    // Safer code would loop through all connected
-                    // properties based on the number provided.
-                    Asset connectedAsset = aProperty.GetConnectedProperty(0) as Asset;
-                    // We are only checking for bitmap connected assets.
-                    if (connectedAsset.Name == "UnifiedBitmapSchema")
+                    theAsset = node.GetAppearanceOverride();
+                }
+                if (theAsset == null)
+                {
+                    //Element m = _doc.GetElement(node.MaterialId);
+                    Material material = _doc.GetElement(node.MaterialId) as Material;
+                    ElementId appearanceId = material.AppearanceAssetId;
+                    AppearanceAssetElement appearanceElem = _doc.GetElement(appearanceId) as AppearanceAssetElement;
+                    theAsset = appearanceElem.GetRenderingAsset();
+                }
+                
+
+                if (theAsset.Size == 0)
+                {
+                    //TaskDialog.Show("revit","欧特克材质");
+                    foreach (Asset objCurrentAsset in _objlibraryAsset)
                     {
-                        // This line is 2018.1 & up because of the
-                        // property reference to UnifiedBitmap
-                        // .UnifiedbitmapBitmap. In earlier versions,
-                        // you can still reference the string name
-                        // instead: "unifiedbitmap_Bitmap"
-                        AssetPropertyString path = connectedAsset["unifiedbitmap_Bitmap"] as AssetPropertyString;
-                        // This will be a relative path to the
-                        // built -in materials folder, addiitonal
-                        // render appearance folder, or an
-                        // absolute path.
-                        TaskDialog.Show("Connected bitmap", String.Format("{0} from {2}: {1}", aProperty.Name, path.Value, connectedAsset.LibraryName));
+                        if (objCurrentAsset.Name == theAsset.Name && objCurrentAsset.LibraryName == theAsset.LibraryName)
+                        {
+                            //var theValue = objCurrentAsset.Type.ToString();
+                            ReadAsset(objCurrentAsset);
+                            //TaskDialog.Show("欧特克材质", theValue);
+                        }
                     }
                 }
+                else
+                {
+                    ReadAsset(theAsset);
+                }
+
+
+
+                //AssetProperty aProperty = theAsset[assetIdx];
+                //if (aProperty.NumberOfConnectedProperties < 1)
+                //    continue;
+                //// Find first connected property.
+                //// Should work for all current (2018) schemas.
+                //// Safer code would loop through all connected
+                //// properties based on the number provided.
+                //Asset connectedAsset = aProperty.GetConnectedProperty(0) as Asset;
+                //// We are only checking for bitmap connected assets.
+                //if (connectedAsset.Name == "UnifiedBitmapSchema")
+                //{
+                //    // This line is 2018.1 & up because of the
+                //    // property reference to UnifiedBitmap
+                //    // .UnifiedbitmapBitmap. In earlier versions,
+                //    // you can still reference the string name
+                //    // instead: "unifiedbitmap_Bitmap"
+                //    AssetPropertyString path = connectedAsset["unifiedbitmap_Bitmap"] as AssetPropertyString;
+                //    // This will be a relative path to the
+                //    // built -in materials folder, addiitonal
+                //    // render appearance folder, or an
+                //    // absolute path.
+                //    TaskDialog.Show("Connected bitmap", String.Format("{0} from {2}: {1}", aProperty.Name, path.Value, connectedAsset.LibraryName));
             }
 
             if (currentMterialId != node.MaterialId)
@@ -430,20 +556,10 @@ namespace RvtToObj
             }
             materialIndex++;
 
-            if (node.HasOverriddenAppearance)
-            {
-                currentAppearance = node.GetAppearanceOverride();
-            }
-            else
-            {
-                currentAppearance = node.GetAppearance();
-            }
-
         }
 
         public RenderNodeAction OnFaceBegin(FaceNode node)
         {
-            //TaskDialog.Show("revit", "OnFaceBegin");
             Debug.WriteLine(" OnFaceBegin: " + node.NodeName);
             return RenderNodeAction.Proceed;
         }
@@ -509,33 +625,28 @@ namespace RvtToObj
 
         public void OnFaceEnd(FaceNode node)
         {
-            //TaskDialog.Show("revit", "OnFaceEnd");
             Debug.WriteLine(" OnFaceEnd: " + node.NodeName);
         }
 
         public void OnInstanceEnd(InstanceNode node)
         {
-            //TaskDialog.Show("revit", "OnInstanceEnd");
             Debug.WriteLine(" OnInstanceEnd: " + node.NodeName);
             _transformationStack.Pop();
         }
 
         public void OnElementEnd(ElementId id)
         {
-            //TaskDialog.Show("revit", "OnElementEnd");
             Element e = _doc.GetElement(id);
             string uid = e.UniqueId;
         }
 
         public void OnViewEnd(ElementId elementId)
         {
-            //TaskDialog.Show("revit", "OnViewEnd");
             Debug.WriteLine("OnViewEnd: Id: " + elementId.IntegerValue);
         }
 
         public void Finish()
         {
-            //TaskDialog.Show("revit", "Finish");
             string material_library_path = null;
             material_library_path = Path.ChangeExtension(_filename, "mtl");
             using (StreamWriter s = new StreamWriter(_filename))
@@ -595,12 +706,11 @@ namespace RvtToObj
                                 transparencys[color.Key]);
                 }
             }
-            TaskDialog.Show("RvtToObj", "导出成功！");
+            //TaskDialog.Show("RvtToObj", "导出成功！");
         }
 
         public void OnDaylightPortal(DaylightPortalNode node)
         {
-            //TaskDialog.Show("revit", "OnDaylightPortal");
             {
                 Debug.WriteLine("OnDaylightPortal: " + node.NodeName);
                 Asset asset = node.GetAsset();
@@ -611,13 +721,11 @@ namespace RvtToObj
 
         public void OnLight(LightNode node)
         {
-            //TaskDialog.Show("revit", "OnLight");
             Debug.WriteLine("OnLight: " + node.NodeName);
         }
 
         public RenderNodeAction OnLinkBegin(LinkNode node)
         {
-            //TaskDialog.Show("revit", "OnLinkBegin");
             Debug.WriteLine(" OnLinkBegin: " + node.NodeName + " Document: " + node.GetDocument().Title + ": Id: " + node.GetSymbolId().IntegerValue);
             _transformationStack.Push(CurrentTransform.Multiply(node.GetTransform()));
             return RenderNodeAction.Proceed;
@@ -625,14 +733,12 @@ namespace RvtToObj
 
         public void OnLinkEnd(LinkNode node)
         {
-            //TaskDialog.Show("revit", "OnLinkEnd");
             Debug.WriteLine(" OnLinkEnd: " + node.NodeName);
             _transformationStack.Pop();
         }
 
         public void OnRPC(RPCNode node)
         {
-            //TaskDialog.Show("revit", "OnRPC");
             Debug.WriteLine("OnRPC: " + node.NodeName);
         }
     }
